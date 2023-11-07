@@ -1,0 +1,5 @@
+El archivo es muy pesado para cargar al hit asi que se debe descargar localmente desde https://www.argentina.gob.ar/dine/resultados-electorales/elecciones-2023
+
+Luego cargarse al como "ResultadosElectorales_2023.csv" 
+
+Cada uno debe trabajar con la base de datos de manera local y compartiendo luego, el codigo que se vaya trabajando
