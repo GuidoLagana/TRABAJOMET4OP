@@ -1,0 +1,87 @@
+import pandas as pd
+import numpy as np
+
+datos = pd.read_csv(
+    ".../ResultadosElectorales_2023.csv", 
+    dtype={'Columna7': str, 'Columna10': float, 'Columna11': str, 'Columna20': str}
+) #Esto lo tuve que hacer porque no me leía el archivo por los datos mixtos de estas columnas
+
+datos.head()
+datos.tail(5)
+datos.index
+type(datos.index)
+datos.columns
+type(datos.columns)
+datos.values
+type(datos.values)
+datos.shape
+valores_votos_tipo = datos['votos_tipo'].unique()
+print(valores_votos_tipo)
+
+agrupaciones = datos ["agrupacion_nombre"].unique()
+print(agrupaciones)
+ClavesAgrupaciones = datos ["agrupacion_id"].unique()
+print(ClavesAgrupaciones)
+
+agrupaciones_dict = datos[['agrupacion_id', 'agrupacion_nombre']].drop_duplicates().set_index('agrupacion_id')['agrupacion_nombre'].to_dict()
+
+for clave, valor in agrupaciones_dict.items():
+    print(f"Clave: {clave} -> Agrupación: {valor}")
+
+    
+CirEl = datos["distrito_nombre"]. unique()
+print(CirEl)
+ClavesCirEl = datos["distrito_id"]. unique() 
+print(ClavesCirEl)
+
+distritos_dict = datos[['distrito_id', 'distrito_nombre']].drop_duplicates().set_index('distrito_id')['distrito_nombre'].to_dict()
+
+for clave, valor in distritos_dict.items():
+    print(f"ID de Distrito: {clave} -> Nombre de Distrito: {valor}")
+
+# Filtramos los datos de la Ciudad Autónoma de Buenos Aires
+datos_caba = datos[datos['distrito_id'] == 1]
+datos_caba.head()
+datos_caba.tail(5)
+datos_caba.index
+type(datos_caba.index)
+datos_caba.columns
+type(datos_caba.columns)
+datos_caba.values
+type(datos_caba.values)
+datos_caba.shape
+mesa_electores_tipo = datos_caba['mesa_electores']
+print(mesa_electores_tipo)
+cargos_tipo = datos_caba['cargo_nombre'].unique()
+print(cargos_tipo)
+
+## Filtramos los datos de Jefe/a de Gobierno en la Ciudad Autónoma de Buenos Aires
+datos_jefe_gobierno = datos_caba[datos_caba['cargo_nombre'] == 'JEFE/A DE GOBIERNO']
+
+# Sumamos los electores para obtener la cantidad total
+total_electores = datos_jefe_gobierno['mesa_electores'].sum()
+
+# Contamos la cantidad de mesas
+cantidad_mesas = datos_jefe_gobierno['mesa_id'].nunique()
+
+# Calculamos la participación
+participacion = (datos_jefe_gobierno['votos_cantidad'].sum() / total_electores) * 100
+
+# Filtramos por tipos de votos
+votos_nulos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'NULO']['votos_cantidad'].sum()
+votos_impugnados = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'IMPUGNADO']['votos_cantidad'].sum()
+votos_recurridos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'RECURRIDO']['votos_cantidad'].sum()
+votos_comando = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'COMANDO']['votos_cantidad'].sum()
+votos_positivos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+votos_en_blanco = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'EN BLANCO']['votos_cantidad'].sum()
+
+# Imprimimos los resultados
+print(f"Cantidad de mesas: {cantidad_mesas}")
+print(f"Total de electores: {total_electores}")##### Este resultado da mal, aún no logro hacer que de el número correcto
+print(f"Participación: {participacion:.2f}%")
+print(f"Votos nulos: {votos_nulos}")
+print(f"Votos impugnados: {votos_impugnados}")
+print(f"Votos recurridos: {votos_recurridos}")
+print(f"Votos comando: {votos_comando}")
+print(f"Votos positivos: {votos_positivos}")
+print(f"Votos en blanco: {votos_en_blanco}")
