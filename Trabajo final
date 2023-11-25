@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
+from IPython.display import display
 
 datos = pd.read_csv(
-    ".../ResultadosElectorales_2023.csv", 
+    "C:/Users/lolag/Met.O.P/generales2023/ResultadosElectorales_2023.csv", 
     dtype={'Columna7': str, 'Columna10': float, 'Columna11': str, 'Columna20': str}
-) #Esto lo tuve que hacer porque no me leía el archivo por los datos mixtos de estas columnas
+)
 
 datos.head()
 datos.tail(5)
@@ -24,7 +25,7 @@ ClavesAgrupaciones = datos ["agrupacion_id"].unique()
 print(ClavesAgrupaciones)
 
 agrupaciones_dict = datos[['agrupacion_id', 'agrupacion_nombre']].drop_duplicates().set_index('agrupacion_id')['agrupacion_nombre'].to_dict()
-
+print(agrupaciones_dict)
 for clave, valor in agrupaciones_dict.items():
     print(f"Clave: {clave} -> Agrupación: {valor}")
 
@@ -38,7 +39,8 @@ distritos_dict = datos[['distrito_id', 'distrito_nombre']].drop_duplicates().set
 
 for clave, valor in distritos_dict.items():
     print(f"ID de Distrito: {clave} -> Nombre de Distrito: {valor}")
-
+valores_distrito_id = datos['distrito_id'].unique()
+print(valores_distrito_id)
 # Filtramos los datos de la Ciudad Autónoma de Buenos Aires
 datos_caba = datos[datos['distrito_id'] == 1]
 datos_caba.head()
@@ -50,36 +52,80 @@ type(datos_caba.columns)
 datos_caba.values
 type(datos_caba.values)
 datos_caba.shape
-mesa_electores_tipo = datos_caba['mesa_electores']
-print(mesa_electores_tipo)
+votos_cantidad_tipo = datos_caba['votos_cantidad']
+print(votos_cantidad_tipo)
 cargos_tipo = datos_caba['cargo_nombre'].unique()
 print(cargos_tipo)
+print(datos['votos_cantidad'].head())
+print(datos['votos_cantidad'].unique())
 
-## Filtramos los datos de Jefe/a de Gobierno en la Ciudad Autónoma de Buenos Aires
-datos_jefe_gobierno = datos_caba[datos_caba['cargo_nombre'] == 'JEFE/A DE GOBIERNO']
+## Filtramos los datos de PRESIDENTE Y VICE en la Ciudad Autónoma de Buenos Aires
+datos_PYV = datos_caba[datos_caba['cargo_nombre'] == 'PRESIDENTE Y VICE']
+datos_PYV.head()
+datos_PYV.columns
+datos_PYV['votos_cantidad'].head()
 
-# Sumamos los electores para obtener la cantidad total
-total_electores = datos_jefe_gobierno['mesa_electores'].sum()
+##Organizamos la información para poder obtener la cantidad de electores real y Sumamos los electores para obtener la cantidad total
+total_electores = datos_PYV.groupby('mesa_id')['mesa_electores'].first().sum()
+
 
 # Contamos la cantidad de mesas
-cantidad_mesas = datos_jefe_gobierno['mesa_id'].nunique()
+cantidad_mesas = datos_PYV['mesa_id'].nunique() 
 
-# Calculamos la participación
-participacion = (datos_jefe_gobierno['votos_cantidad'].sum() / total_electores) * 100
+# Calcular la cantidad de mesas escrutadas
+cantidad_mesas_escrutadas = len(cantidad_mesas) - cantidad_mesas_no_escrutadas
+
+# Calcular el porcentaje de mesas escrutadas
+porcentaje_mesas_escrutadas = (cantidad_mesas_escrutadas * 100) / len(cantidad_mesas)
+
+# Calcular la cantidad total de electores escrutados
+total_electores_escrutados = total_electores - total_electores_no_escrutadas
+
+# Calcular el porcentaje de electores escrutados
+porcentaje_electores_escrutados = (total_electores_escrutados / total_electores) * 100
+
+# Calcular la participación usando votos válidos y descontando los electores no escrutados
+participacion = (((votos_validos + votos_nulos + votos_recurridos_impugnados_comando) *100)  / (total_electores_escrutados))
 
 # Filtramos por tipos de votos
-votos_nulos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'NULO']['votos_cantidad'].sum()
-votos_impugnados = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'IMPUGNADO']['votos_cantidad'].sum()
-votos_recurridos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'RECURRIDO']['votos_cantidad'].sum()
-votos_comando = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'COMANDO']['votos_cantidad'].sum()
-votos_positivos = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
-votos_en_blanco = datos_jefe_gobierno[datos_jefe_gobierno['votos_tipo'] == 'EN BLANCO']['votos_cantidad'].sum()
+votos_nulos = datos_PYV[datos_PYV['votos_tipo'] == 'NULO']['votos_cantidad'].sum()
+votos_impugnados = datos_PYV[datos_PYV['votos_tipo'] == 'IMPUGNADO']['votos_cantidad'].sum()
+votos_recurridos = datos_PYV[datos_PYV['votos_tipo'] == 'RECURRIDO']['votos_cantidad'].sum()
+votos_comando = datos_PYV[datos_PYV['votos_tipo'] == 'COMANDO']['votos_cantidad'].sum()
+votos_positivos = datos_PYV[datos_PYV['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+votos_en_blanco = datos_PYV[datos_PYV['votos_tipo'] == 'EN BLANCO']['votos_cantidad'].sum()
+votos_validos = votos_positivos + votos_en_blanco
+votos_recurridos_impugnados_comando = votos_recurridos + votos_impugnados + votos_comando
+
 
 # Imprimimos los resultados
 print(f"Cantidad de mesas: {cantidad_mesas}")
-print(f"Total de electores: {total_electores}")##### Este resultado da mal, aún no logro hacer que de el número correcto
+print(f"Cantidad de mesas escrutadas: {cantidad_mesas_escrutadas}")
+print(f"Porcentaje_mesas_escrutadas: {porcentaje_mesas_escrutadas:.2f}%")
+print(f"Total de electores en CABA: {total_electores}")
+print(f"Cantidad de electores escrutados: {total_electores_escrutados}")
+print(f"Porcentaje electores escrutados: {porcentaje_electores_escrutados:.2f}%")
 print(f"Participación: {participacion:.2f}%")
 print(f"Votos nulos: {votos_nulos}")
+print(f"Votos impugnados: {votos_impugnados}")
+print(f"Votos recurridos: {votos_recurridos}")
+print(f"Votos comando: {votos_comando}")
+print(f"Votos positivos: {votos_positivos}")
+print(f"Votos en blanco: {votos_en_blanco}")
+print(f"Votos válidos: {votos_validos}")
+print(f"Votos recurridos, impugnados y comando: {votos_recurridos_impugnados_comando}")
+
+
+####Calculamos el total de votos de UNIÓN POR LA PATRIA y su porcentaje
+
+votos_UxP_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'UNION POR LA PATRIA']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de UNIÓN POR LA PATRIA en la Ciudad Autónoma de Buenos Aires (incluyendo votos nulos)
+porcentaje_UxP_caba = (votos_UxP_caba / votos_positivos) * 100
+
+# Imprimimos los resultados
+print(f"Votos de Unión por la Patria en CABA (incluyendo votos nulos): {votos_UxP_caba}")
+print(f"Porcentaje de votos de Unión por la Patria en CABA (incluyendo votos nulos): {porcentaje_UxP_caba:.2f}%")
 print(f"Votos impugnados: {votos_impugnados}")
 print(f"Votos recurridos: {votos_recurridos}")
 print(f"Votos comando: {votos_comando}")
