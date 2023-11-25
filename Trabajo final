@@ -126,8 +126,3 @@ porcentaje_UxP_caba = (votos_UxP_caba / votos_positivos) * 100
 # Imprimimos los resultados
 print(f"Votos de Unión por la Patria en CABA (incluyendo votos nulos): {votos_UxP_caba}")
 print(f"Porcentaje de votos de Unión por la Patria en CABA (incluyendo votos nulos): {porcentaje_UxP_caba:.2f}%")
-print(f"Votos impugnados: {votos_impugnados}")
-print(f"Votos recurridos: {votos_recurridos}")
-print(f"Votos comando: {votos_comando}")
-print(f"Votos positivos: {votos_positivos}")
-print(f"Votos en blanco: {votos_en_blanco}")
