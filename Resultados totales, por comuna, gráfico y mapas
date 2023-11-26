@@ -1,0 +1,203 @@
+import pandas as pd
+import numpy as np
+from IPython.display import display
+import geopandas as gpd
+import folium
+from folium.plugins import HeatMap
+import matplotlib.pyplot as plt
+from shapely import wkt
+from matplotlib.colors import LinearSegmentedColormap
+from shapely.geometry import MultiPolygon
+from shapely.geometry import MultiPolygon, GeometryCollection
+from shapely.ops import cascaded_union
+
+# Carga de datos
+Elecciones2023 = pd.read_csv("C:/Users/lolag/Met.O.P/generales2023/ResultadosElectorales_2023.csv", dtype={'Columna7': str, 'Columna10': float, 'Columna11': str, 'Columna20': str})
+CircuitosElectorales = gpd.read_file("C:/Users/lolag/Met.O.P/generales2023/circuito_01/circuito_01.shp")
+
+Elecciones2023.columns
+Elecciones2023.head()
+CircuitosElectorales.columns
+CircuitosElectorales.head()
+
+
+
+
+#########################      inicio DATOS CABA    ########################################
+
+Elecciones2023_CABA = Elecciones2023[Elecciones2023['distrito_id'] == 1]
+Elecciones2023_CABA.head()
+Elecciones2023_CABA.columns
+comuna = Elecciones2023_CABA['seccion_nombre'].unique()
+print(comuna)
+
+
+
+
+
+########## INICIO FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN ########################
+
+
+
+
+
+
+########## Filtrar por cargo de PRESIDENTE Y VICE y la agrupación "UNION POR LA PATRIA" ########
+Elecciones2023_CABA_UXP = Elecciones2023_CABA[
+    (Elecciones2023_CABA['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (Elecciones2023_CABA['agrupacion_nombre'] == 'UNION POR LA PATRIA')
+]
+votos_UXP = Elecciones2023_CABA_UXP[Elecciones2023_CABA_UXP['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+
+# Mostrar la cantidad total de votos de UNION POR LA PATRIA
+print(f"La cantidad total de votos de UNION POR LA PATRIA fue: {votos_UXP}")
+
+
+########## Filtrar por cargo de PRESIDENTE Y VICE y la agrupación "LA LIBERTAD AVANZA" ########
+Elecciones2023_CABA_LLA = Elecciones2023_CABA[
+    (Elecciones2023_CABA['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (Elecciones2023_CABA['agrupacion_nombre'] == 'LA LIBERTAD AVANZA')
+]
+votos_LLA = Elecciones2023_CABA_LLA[Elecciones2023_CABA_LLA['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+
+# Mostrar la cantidad total de votos de LA LIBERTAD AVANZA
+print(f"La cantidad total de votos de LA LIBERTAD AVANZA fue: {votos_LLA}")
+
+
+########## Filtrar por cargo de PRESIDENTE Y VICE y la agrupación "JUNTOS POR EL CAMBIO" ########
+Elecciones2023_CABA_JXC = Elecciones2023_CABA[
+    (Elecciones2023_CABA['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (Elecciones2023_CABA['agrupacion_nombre'] == 'JUNTOS POR EL CAMBIO')
+]
+votos_JXC = Elecciones2023_CABA_JXC[Elecciones2023_CABA_JXC['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+
+# Mostrar la cantidad total de votos de JUNTOS POR EL CAMBIO
+print(f"La cantidad total de votos de LA LIBERTAD AVANZA fue: {votos_JXC}")
+
+
+
+
+
+
+########## FIN FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN ########################
+
+
+
+
+
+
+########## INICIO FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN POR COMUNA ########################
+
+
+# Creaamos un diccionario para almacenar los resultados por comuna
+resultados_comunas = {}
+
+# Selecciono comunas únicas en el DataFrame
+comunas = Elecciones2023_CABA_UXP['seccion_nombre'].unique()
+
+# Calculo los votos por agrupación en cada comuna
+for comuna in comunas:
+    votos_UXP_comuna = Elecciones2023_CABA_UXP[Elecciones2023_CABA_UXP['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_LLA_comuna = Elecciones2023_CABA_LLA[Elecciones2023_CABA_LLA['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_JXC_comuna = Elecciones2023_CABA_JXC[Elecciones2023_CABA_JXC['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+
+    resultados_comunas[comuna] = {
+        'UNION POR LA PATRIA': votos_UXP_comuna,
+        'LA LIBERTAD AVANZA': votos_LLA_comuna,
+        'JUNTOS POR EL CAMBIO': votos_JXC_comuna
+    }
+    print(f"{comuna}: "
+          f"UNION POR LA PATRIA = {votos_UXP_comuna}, "
+          f"LA LIBERTAD AVANZA = {votos_LLA_comuna}, "
+          f"JUNTOS POR EL CAMBIO = {votos_JXC_comuna}")
+
+# Calcular y mostrar el total de votos por agrupación
+total_UXP = Elecciones2023_CABA_UXP['votos_cantidad'].sum()
+total_LLA = Elecciones2023_CABA_LLA['votos_cantidad'].sum()
+total_JXC = Elecciones2023_CABA_JXC['votos_cantidad'].sum()
+
+print(f"\nTotal de votos por agrupación:"
+      f" UNION POR LA PATRIA = {total_UXP}, "
+      f"LA LIBERTAD AVANZA = {total_LLA}, "
+      f"JUNTOS POR EL CAMBIO = {total_JXC}")
+
+
+
+###############Gráfico de barras votos por comuna y partido #################
+
+# Convertir el diccionario de resultados a un DataFrame
+df_resultados = pd.DataFrame(resultados_comunas).T
+
+# Definir los colores para cada agrupación
+colores = {'UNION POR LA PATRIA': 'skyblue', 'JUNTOS POR EL CAMBIO': 'gold', 'LA LIBERTAD AVANZA': 'purple'}
+
+# Graficar los resultados por comuna con colores personalizados
+ax = df_resultados.plot(kind='bar', stacked=True, figsize=(12, 8), color=[colores[col] for col in df_resultados.columns])
+plt.title('Cantidad de votos por agrupación en cada comuna')
+plt.xlabel('Comuna')
+plt.ylabel('Cantidad de votos')
+plt.legend(title='Agrupación')
+
+# Rotar las etiquetas del eje x
+plt.xticks(rotation=75)
+
+# Reducir el tamaño de la letra del eje x en un 30%
+plt.tick_params(axis='x', labelsize=plt.rcParams['font.size'] * 0.7)
+
+# Configurar el eje y con marcas cada 10,000 votos y límite hasta 150,000
+plt.yticks(range(0, 150001, 10000))
+
+# Agregar líneas punteadas en el eje x
+for y in range(0, 150001, 10000):
+    plt.axhline(y, linestyle='--', color='grey', alpha=0.5)
+
+plt.show()
+
+
+
+########## FIN FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN POR COMUNA ########################
+
+
+
+
+
+CircuitosElectorales_csv = gpd.read_file("C:/Users/lolag/Met.O.P/circuito_01/circuitos-electorales.csv")
+
+########## MAPA CALOR POR COMUNA ########################
+
+CircuitosElectorales = gpd.read_file("C:/Users/lolag/Met.O.P/generales2023/circuito_01/circuito_01.shp")
+CircuitosElectorales.columns
+Elecciones2023_CABA.columns
+departamentos = CircuitosElectorales['departamen'].unique()
+print(departamentos)
+Elecciones2023_CABA.columns
+comuna = Elecciones2023_CABA['seccion_nombre'].unique()
+print(comuna)
+CircuitosElectorales.columns
+comuna = Elecciones2023_CABA['seccion_nombre'].unique()
+print(comuna)
+
+########## definimos y aplicamos la función unir_geometrias para unir las geometrías de cada comuna
+
+def unir_geometrias(grupo):
+    geometrias = [geom for geom in grupo.geometry]
+    return cascaded_union(geometrias)
+
+# Agrupar por 'departamen' y unir las geometrías de cada grupo (comuna)
+comunas_agrupadas = CircuitosElectorales.groupby('departamen').apply(unir_geometrias)
+# Crear un nuevo GeoDataFrame con las comunas agrupadas
+nuevo_geodf = gpd.GeoDataFrame(geometry=comunas_agrupadas, crs=CircuitosElectorales.crs)
+
+
+# ####### MAPA POR COMUNAS #######
+
+nuevo_geodf.plot(figsize=(12, 12), edgecolor='black', linewidth=2)
+plt.title('Comunas')
+plt.axis('off')
+plt.show()
+
+# Renombrar la columna 'departamen' a 'seccion_nombre'
+CircuitosElectorales = CircuitosElectorales.rename(columns={'departamen': 'seccion_nombre'})
+
+# Realizar el merge entre los DataFrames
+merged_df = pd.merge(Elecciones2023_CABA, CircuitosElectorales, on='seccion_nombre', how='left')
