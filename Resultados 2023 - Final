@@ -1,7 +1,3 @@
-import pandas as pd
-import numpy as np
-from IPython.display import display
-
 datos = pd.read_csv(
     "C:/Users/lolag/Met.O.P/generales2023/ResultadosElectorales_2023.csv", 
     dtype={'Columna7': str, 'Columna10': float, 'Columna11': str, 'Columna20': str}
@@ -18,7 +14,7 @@ type(datos.values)
 datos.shape
 valores_votos_tipo = datos['votos_tipo'].unique()
 print(valores_votos_tipo)
-
+valores 
 agrupaciones = datos ["agrupacion_nombre"].unique()
 print(agrupaciones)
 ClavesAgrupaciones = datos ["agrupacion_id"].unique()
@@ -56,6 +52,9 @@ votos_cantidad_tipo = datos_caba['votos_cantidad']
 print(votos_cantidad_tipo)
 cargos_tipo = datos_caba['cargo_nombre'].unique()
 print(cargos_tipo)
+
+seccion_nombre_tipo = datos_caba['seccion_nombre'].unique()
+print(seccion_nombre_tipo)
 print(datos['votos_cantidad'].head())
 print(datos['votos_cantidad'].unique())
 
@@ -115,6 +114,24 @@ print(f"Votos en blanco: {votos_en_blanco}")
 print(f"Votos válidos: {votos_validos}")
 print(f"Votos recurridos, impugnados y comando: {votos_recurridos_impugnados_comando}")
 
+#Porcentajes de votos
+def porcentaje_votos(votos_candidato, total_votos):
+    porcentaje = (votos_candidato/total_votos) * 100
+    return porcentaje
+    
+porcentaje_votos_positivos = porcentaje_votos(votos_positivos, total_electores)
+porcentaje_votos_blanco = porcentaje_votos(votos_en_blanco, total_electores)
+porcentaje_votos_nulos = porcentaje_votos(votos_nulos, total_electores)
+porcentaje_votos_recurridos = porcentaje_votos(votos_recurridos, total_electores)
+porcentaje_votos_comando = porcentaje_votos(votos_comando, total_electores)
+porcentaje_votos_impugnados = porcentaje_votos(votos_impugnados, total_electores)
+
+print(f"porcentaje de votos positivos: {porcentaje_votos_positivos:.2f}%")
+print(f"porcentaje de votos en blanco: {porcentaje_votos_blanco:.2f}%")
+print(f"porcentaje de votos nulos: {porcentaje_votos_nulos:.2f}%")
+print(f"porcentaje de votos recurridos: {porcentaje_votos_recurridos:.2f}%")
+print(f"porcentaje de votos comando: {porcentaje_votos_comando:.2f}%")
+print(f"porcentaje de votos impugnados: {porcentaje_votos_impugnados:.2f}%")
 
 ####Calculamos el total de votos de UNIÓN POR LA PATRIA y su porcentaje
 
@@ -123,6 +140,28 @@ votos_UxP_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'UNION POR LA PATRI
 # Calculamos el porcentaje de votos de UNIÓN POR LA PATRIA en la Ciudad Autónoma de Buenos Aires (incluyendo votos nulos)
 porcentaje_UxP_caba = (votos_UxP_caba / votos_positivos) * 100
 
+
+####Calculamos el total de votos de UNIÓN POR LA PATRIA y su porcentaje
+
+votos_LAA_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'LA LIBERTAD AVANZA']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de LA LIBERTAD AVANZA en la Ciudad Autónoma de Buenos Aires (incluyendo votos nulos)
+porcentaje_LLA_caba = (votos_LAA_caba / votos_positivos) * 100
+
+
+
+####Calculamos el total de votos de JUNTOS POR EL CAMBIO y su porcentaje
+
+votos_JxC_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'JUNTOS POR EL CAMBIO']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de UNIÓN POR LA PATRIA en la Ciudad Autónoma de Buenos Aires (incluyendo votos nulos)
+porcentaje_JxC_caba = (votos_JxC_caba / votos_positivos) * 100
+
+
 # Imprimimos los resultados
 print(f"Votos de Unión por la Patria en CABA (incluyendo votos nulos): {votos_UxP_caba}")
 print(f"Porcentaje de votos de Unión por la Patria en CABA (incluyendo votos nulos): {porcentaje_UxP_caba:.2f}%")
+print(f"Votos de LA LIBERTAD AVANZA en CABA (incluyendo votos nulos): {votos_LAA_caba}")
+print(f"Porcentaje de votos de LA LIBERTAD AVANZA en CABA (incluyendo votos nulos): {porcentaje_LLA_caba:.2f}%")
+print(f"Votos de JUNTOS POR EL CAMBIO en CABA (incluyendo votos nulos): {votos_JxC_caba}")
+print(f"Porcentaje de votos de JUNTOS POR EL CAMBIO en CABA (incluyendo votos nulos): {porcentaje_JxC_caba:.2f}%")
