@@ -1,0 +1,782 @@
+import pandas as pd
+import numpy as np
+from IPython.display import display
+import geopandas as gpd
+import folium
+from folium.plugins import HeatMap
+import matplotlib.pyplot as plt
+from shapely import wkt
+from matplotlib.colors import LinearSegmentedColormap
+from shapely.geometry import MultiPolygon
+from shapely.geometry import MultiPolygon, GeometryCollection
+from shapely.ops import cascaded_union
+import matplotlib.colors as mcolors
+from matplotlib.colors import Normalize
+import re
+datos = pd.read_csv(
+    "C:/Users/lolag/Met.O.P/generales2023/ResultadosElectorales_2023.csv", 
+    dtype={'Columna7': str, 'Columna10': float, 'Columna11': str, 'Columna20': str}
+)
+
+
+datos.head()
+datos.tail(5)
+datos.index
+type(datos.index)
+datos.columns
+type(datos.columns)
+datos.values
+type(datos.values)
+datos.shape
+valores_votos_tipo = datos['votos_tipo'].unique()
+print(valores_votos_tipo)
+
+agrupaciones = datos ["agrupacion_nombre"].unique()
+print(agrupaciones)
+ClavesAgrupaciones = datos ["agrupacion_id"].unique()
+print(ClavesAgrupaciones)
+
+agrupaciones_dict = datos[['agrupacion_id', 'agrupacion_nombre']].drop_duplicates().set_index('agrupacion_id')['agrupacion_nombre'].to_dict()
+print(agrupaciones_dict)
+for clave, valor in agrupaciones_dict.items():
+    print(f"Clave: {clave} -> Agrupación: {valor}")
+
+    
+CirEl = datos["distrito_nombre"]. unique()
+print(CirEl)
+ClavesCirEl = datos["distrito_id"]. unique() 
+print(ClavesCirEl)
+
+distritos_dict = datos[['distrito_id', 'distrito_nombre']].drop_duplicates().set_index('distrito_id')['distrito_nombre'].to_dict()
+
+for clave, valor in distritos_dict.items():
+    print(f"ID de Distrito: {clave} -> Nombre de Distrito: {valor}")
+valores_distrito_id = datos['distrito_id'].unique()
+print(valores_distrito_id)
+# Filtramos los datos de la Ciudad Autónoma de Buenos Aires
+datos_caba = datos[datos['distrito_id'] == 1]
+datos_caba.head()
+datos_caba.tail(5)
+datos_caba.index
+type(datos_caba.index)
+datos_caba.columns
+type(datos_caba.columns)
+datos_caba.values
+type(datos_caba.values)
+datos_caba.shape
+votos_cantidad_tipo = datos_caba['votos_cantidad']
+print(votos_cantidad_tipo)
+cargos_tipo = datos_caba['cargo_nombre'].unique()
+print(cargos_tipo)
+
+seccion_nombre_tipo = datos_caba['seccion_nombre'].unique()
+print(seccion_nombre_tipo)
+print(datos['votos_cantidad'].head())
+print(datos['votos_cantidad'].unique())
+
+## Filtramos los datos de PRESIDENTE Y VICE en la Ciudad Autónoma de Buenos Aires
+datos_PYV = datos_caba[datos_caba['cargo_nombre'] == 'PRESIDENTE Y VICE']
+datos_PYV.head()
+datos_PYV.columns
+datos_PYV['votos_cantidad'].head()
+
+
+
+# Filtramos por tipos de votos
+votos_nulos = datos_PYV[datos_PYV['votos_tipo'] == 'NULO']['votos_cantidad'].sum()
+votos_impugnados = datos_PYV[datos_PYV['votos_tipo'] == 'IMPUGNADO']['votos_cantidad'].sum()
+votos_recurridos = datos_PYV[datos_PYV['votos_tipo'] == 'RECURRIDO']['votos_cantidad'].sum()
+votos_comando = datos_PYV[datos_PYV['votos_tipo'] == 'COMANDO']['votos_cantidad'].sum()
+votos_positivos = datos_PYV[datos_PYV['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+votos_en_blanco = datos_PYV[datos_PYV['votos_tipo'] == 'EN BLANCO']['votos_cantidad'].sum()
+votos_validos = votos_positivos + votos_en_blanco
+votos_recurridos_impugnados_comando = votos_recurridos + votos_impugnados + votos_comando
+
+
+##Organizamos la información para poder obtener la cantidad de electores real y Sumamos los electores para obtener la cantidad total
+
+############################ MESAS #####################################
+
+
+# Contamos la cantidad de mesas
+cantidad_mesas = datos_PYV['mesa_id'].nunique() 
+#Agrupar por mesa_id y sumar los votos por tipo de voto
+mesas_agrupadas = datos_PYV.groupby('mesa_id')['votos_cantidad'].sum()
+# Identificar mesas no escrutadas
+mesas_no_escrutadas = mesas_agrupadas[mesas_agrupadas == 0]
+# Obtener la cantidad de mesas no escrutadas
+cantidad_mesas_no_escrutadas = len(mesas_no_escrutadas)
+# Calcular la cantidad de mesas escrutadas
+cantidad_mesas_escrutadas = cantidad_mesas - cantidad_mesas_no_escrutadas
+# Calcular el porcentaje de mesas escrutadas
+porcentaje_mesas_escrutadas = (cantidad_mesas_escrutadas * 100) / cantidad_mesas
+
+############################ FIN MESAS #####################################
+
+
+
+
+############################ ELECTORES #####################################
+
+####Total de electores habilitados####
+total_electores = datos_PYV.groupby('mesa_id')['mesa_electores'].first().sum()
+
+##### Calcular la la cantidad total de electores no escrutados
+#Filtro el DataFrame para obtener solo las filas de las mesas no escrutadas
+mesas_no_escrutadas_info = datos_PYV[datos_PYV['mesa_id'].isin(mesas_no_escrutadas.index)]
+
+# Obtener la suma de electores para las mesas no escrutadas
+electores_por_mesa_no_escrutada = mesas_no_escrutadas_info.drop_duplicates(subset='mesa_id')['mesa_electores']
+
+# Calcular el total de electores no escrutados
+total_electores_no_escrutados = electores_por_mesa_no_escrutada.sum()
+
+print(f"Total de electores no escrutados: {total_electores_no_escrutados}")
+
+
+##### Calcular la cantidad total de electores escrutados ####
+total_electores_escrutados = total_electores - total_electores_no_escrutados
+
+# Calcular el porcentaje de electores escrutados
+porcentaje_electores_escrutados = (total_electores_escrutados / total_electores) * 100
+
+# Calcular la participación usando votos válidos y descontando los electores no escrutados
+participacion = (votos_validos + votos_nulos + votos_recurridos_impugnados_comando) 
+
+# Calcular porcentaje de participación 
+porcentaje_participacion = (participacion / total_electores_escrutados) * 100
+
+############################ FIN ELECTORES #####################################
+
+#    SACAR PORCENTAJES POR FUNCIÓN 
+def porcentaje_votos(votos_candidato, total_votos):
+    porcentaje = (votos_candidato/total_votos) * 100
+    return porcentaje
+porcentaje_votos_validos = porcentaje_votos(votos_validos, participacion)    
+porcentaje_votos_positivos = porcentaje_votos(votos_positivos, participacion)
+porcentaje_votos_blanco = porcentaje_votos(votos_en_blanco, participacion)
+porcentaje_votos_nulos = porcentaje_votos(votos_nulos, participacion)
+porcentaje_votos_recurridos_impugnados_comando = porcentaje_votos(votos_recurridos_impugnados_comando, participacion)
+
+
+############################ RESULTADOS FINALES COMPLETO #####################################
+
+
+# Imprimimos los resultados
+print(f"Cantidad de mesas: {cantidad_mesas}")
+print(f"Cantidad de mesas escrutadas: {cantidad_mesas_escrutadas}")
+print(f"Cantidad de mesas no escrutadas: {cantidad_mesas_no_escrutadas}")
+print(f"Porcentaje mesas escrutadas: {porcentaje_mesas_escrutadas:.2f}%")
+print(f"Total de electores en CABA: {total_electores}")
+print(f"Cantidad de electores escrutados: {total_electores_escrutados}")
+print(f"Porcentaje electores escrutados: {porcentaje_electores_escrutados:.2f}%")
+print(f"Total electores no escrutados: {total_electores_no_escrutados}")
+print(f"Participación: {participacion}")
+print(f"Participación: {porcentaje_participacion:.2f}%")
+print(f"Votos nulos: {votos_nulos}")
+print(f"Votos positivos: {votos_positivos}")
+print(f"Votos en blanco: {votos_en_blanco}")
+print(f"Votos válidos: {votos_validos}")
+print(f"Votos recurridos, impugnados y comando: {votos_recurridos_impugnados_comando}")
+print(f"porcentaje de votos validos: {porcentaje_votos_validos:.2f}%")
+print(f"porcentaje de votos positivos: {porcentaje_votos_positivos:.2f}%")
+print(f"porcentaje de votos en blanco: {porcentaje_votos_blanco:.2f}%")
+print(f"porcentaje de votos nulos: {porcentaje_votos_nulos:.2f}%")
+print(f"porcentaje de votos recurridos impugnados comando: {porcentaje_votos_recurridos_impugnados_comando:.2f}%")
+
+############################ FIN RESULTADOS FINALES COMPLETO #####################################
+
+
+
+
+
+
+
+
+
+
+########## INICIO PORCENTAJE  DE VOTOS POR AGRUPACIÓN ########################
+
+
+
+
+####Calculamos el total de votos de las principales fuerzas y su porcentaje
+
+
+####Calculamos el total de votos de UNIÓN POR LA PATRIA y su porcentaje
+
+votos_UxP_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'UNION POR LA PATRIA']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de UNIÓN POR LA PATRIA en la Ciudad Autónoma de Buenos Aires 
+porcentaje_UxP_caba = (votos_UxP_caba / votos_positivos) * 100
+
+
+
+####Calculamos el total de votos de LA LIBERTAD AVANZA y su porcentaje
+
+votos_LAA_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'LA LIBERTAD AVANZA']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de LA LIBERTAD AVANZA en la Ciudad Autónoma de Buenos Aires 
+porcentaje_LLA_caba = (votos_LAA_caba / votos_positivos) * 100
+
+
+
+
+####Calculamos el total de votos de JUNTOS POR EL CAMBIO y su porcentaje
+
+votos_JxC_caba = datos_PYV[datos_PYV['agrupacion_nombre'] == 'JUNTOS POR EL CAMBIO']['votos_cantidad'].sum()
+
+# Calculamos el porcentaje de votos de JUNTOS POR EL CAMBIOen la Ciudad Autónoma de Buenos Aires 
+porcentaje_JxC_caba = (votos_JxC_caba / votos_positivos) * 100
+
+
+# Imprimimos los resultados
+print(f"Votos de Unión por la Patria en CABA : {votos_UxP_caba}")
+print(f"Porcentaje de votos de Unión por la Patria en CABA : {porcentaje_UxP_caba:.2f}%")
+print(f"Votos de LA LIBERTAD AVANZA en CABA : {votos_LAA_caba}")
+print(f"Porcentaje de votos de LA LIBERTAD AVANZA en CABA : {porcentaje_LLA_caba:.2f}%")
+print(f"Votos de JUNTOS POR EL CAMBIO en CABA : {votos_JxC_caba}")
+print(f"Porcentaje de votos de JUNTOS POR EL CAMBIO en CABA : {porcentaje_JxC_caba:.2f}%")
+
+
+
+
+
+########## FIN PORCENTAJE  DE VOTOS POR AGRUPACIÓN ########################
+
+#                                        |
+#                                        |
+#                                        |
+#                                        |
+#                                        |
+#                                        |
+#                                        |
+############################## HECHO DOS VECES DE FORMAS DISTINTAS ####################################
+#                                        |
+#                                        |
+#                                        |
+                                    ##agregando FIT Y HNP##
+#                                        |
+#                                        |
+#                                        |
+########## INICIO FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN ########################
+
+
+########## Filtro por cargo de PRESIDENTE Y VICE y la agrupación "UNION POR LA PATRIA" ########
+Elecciones2023_CABA_UXP = datos_caba[
+    (datos_caba['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (datos_caba['agrupacion_nombre'] == 'UNION POR LA PATRIA')
+]
+votos_UXP = Elecciones2023_CABA_UXP[Elecciones2023_CABA_UXP['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+print(votos_UXP)
+# Mostrar la cantidad total de votos de UNION POR LA PATRIA
+print(f"La cantidad total de votos de UNION POR LA PATRIA fue: {votos_UXP}")
+
+
+
+########## Filtro por cargo de PRESIDENTE Y VICE y la agrupación "LA LIBERTAD AVANZA" ########
+Elecciones2023_CABA_LLA = datos_caba[
+    (datos_caba['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (datos_caba['agrupacion_nombre'] == 'LA LIBERTAD AVANZA')
+]
+votos_LLA = Elecciones2023_CABA_LLA[Elecciones2023_CABA_LLA['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+# Mostrar la cantidad total de votos de LA LIBERTAD AVANZA
+print(f"La cantidad total de votos de LA LIBERTAD AVANZA fue: {votos_LLA}")
+
+
+
+
+########## Filtro por cargo de PRESIDENTE Y VICE y la agrupación "JUNTOS POR EL CAMBIO" ########
+Elecciones2023_CABA_JXC = datos_caba[
+    (datos_caba['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (datos_caba['agrupacion_nombre'] == 'JUNTOS POR EL CAMBIO')
+]
+votos_JXC = Elecciones2023_CABA_JXC[Elecciones2023_CABA_JXC['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+# Mostrar la cantidad total de votos de JUNTOS POR EL CAMBIO
+print(f"La cantidad total de votos de JUNTOS POR EL CAMBIO fue: {votos_JXC}")
+
+
+########## Filtro por cargo de PRESIDENTE Y VICE y la agrupación "FIT" ######## AGREGO FIT Y HNP para que den bien los % por comuna
+Elecciones2023_CABA_FIT = datos_caba[
+    (datos_caba['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (datos_caba['agrupacion_nombre'] == 'FRENTE DE IZQUIERDA Y DE TRABAJADORES - UNIDAD')
+]
+votos_FIT = Elecciones2023_CABA_FIT[Elecciones2023_CABA_FIT['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+# Mostrar la cantidad total de votos de FIT
+print(f"La cantidad total de votos de FRENTE DE IZQUIERDA Y DE TRABAJADORES - UNIDAD fue: {votos_FIT}")
+
+########## Filtro por cargo de PRESIDENTE Y VICE y la agrupación "HNP" ########
+Elecciones2023_CABA_HNP = datos_caba[
+    (datos_caba['cargo_nombre'].isin(['PRESIDENTE Y VICE'])) &
+    (datos_caba['agrupacion_nombre'] == 'HACEMOS POR NUESTRO PAIS')
+]
+votos_HNP = Elecciones2023_CABA_HNP[Elecciones2023_CABA_HNP['votos_tipo'] == 'POSITIVO']['votos_cantidad'].sum()
+
+# Mostrar la cantidad total de votos de HNP
+print(f"La cantidad total de votos de HACEMOS POR NUESTRO PAIS fue: {votos_HNP}")
+
+########## FIN FILTROS CANTIDAD DE VOTOS POR AGRUPACIÓN ########################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########## INICIO  CANTIDAD DE VOTOS POR AGRUPACIÓN POR COMUNA ########################
+
+
+# Creaamos un diccionario para almacenar los resultados por comuna
+votos_comunas = {}
+
+# Selecciono comunas únicas en el DataFrame
+comunasUxP = Elecciones2023_CABA_UXP['seccion_nombre'].unique()
+comunasLLA = Elecciones2023_CABA_LLA['seccion_nombre'].unique()
+comunasJXC = Elecciones2023_CABA_JXC['seccion_nombre'].unique()
+
+# Calculo los votos por agrupación en cada comuna
+for comuna in comunas:
+    votos_UXP_comuna = Elecciones2023_CABA_UXP[Elecciones2023_CABA_UXP['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_LLA_comuna = Elecciones2023_CABA_LLA[Elecciones2023_CABA_LLA['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_JXC_comuna = Elecciones2023_CABA_JXC[Elecciones2023_CABA_JXC['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+
+    votos_comunas[comuna] = {
+        'UNION POR LA PATRIA': votos_UXP_comuna,
+        'LA LIBERTAD AVANZA': votos_LLA_comuna,
+        'JUNTOS POR EL CAMBIO': votos_JXC_comuna
+    }
+    print(f"{comuna}: "
+          f"UNION POR LA PATRIA = {votos_UXP_comuna}, "
+          f"LA LIBERTAD AVANZA = {votos_LLA_comuna}, "
+          f"JUNTOS POR EL CAMBIO = {votos_JXC_comuna}")
+
+# Calcular y mostrar el total de votos por agrupación
+total_UXP = Elecciones2023_CABA_UXP['votos_cantidad'].sum()
+total_LLA = Elecciones2023_CABA_LLA['votos_cantidad'].sum()
+total_JXC = Elecciones2023_CABA_JXC['votos_cantidad'].sum()
+
+print(f"\nTotal de votos por agrupación:"
+      f" UNION POR LA PATRIA = {total_UXP}, "
+      f"LA LIBERTAD AVANZA = {total_LLA}, "
+      f"JUNTOS POR EL CAMBIO = {total_JXC}")
+
+
+
+########## FIN  CANTIDAD DE VOTOS POR AGRUPACIÓN POR COMUNA ########################
+
+
+
+
+
+
+
+
+
+########## INICIO DE PORCENTAJES POR COMUNAS ########################
+###########Tuve que agregar las otras dos agrupaciones porque sino se me distorcionaban los porcentajes ############
+# Creaamos un diccionario para almacenar los resultados por comuna en porcentajes respecto al total de cada comuna
+porcentaje_comunas = {}
+
+# Selecciono comunas únicas en el DataFrame
+comunas = Elecciones2023_CABA_UXP['seccion_nombre'].unique()
+
+# Calculo los votos por agrupación en cada comuna y los porcentajes
+for comuna in comunas:
+    votos_UXP_comuna = Elecciones2023_CABA_UXP[Elecciones2023_CABA_UXP['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_LLA_comuna = Elecciones2023_CABA_LLA[Elecciones2023_CABA_LLA['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_JXC_comuna = Elecciones2023_CABA_JXC[Elecciones2023_CABA_JXC['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_FIT_comuna = Elecciones2023_CABA_FIT[Elecciones2023_CABA_FIT['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+    votos_HNP_comuna = Elecciones2023_CABA_HNP[Elecciones2023_CABA_HNP['seccion_nombre'] == comuna]['votos_cantidad'].sum()
+
+    total_votos_comuna = votos_UXP_comuna + votos_LLA_comuna + votos_JXC_comuna + votos_HNP_comuna + votos_FIT_comuna
+    
+    porcentaje_UXP_comuna = (votos_UXP_comuna / total_votos_comuna) * 100
+    porcentaje_LLA_comuna = (votos_LLA_comuna / total_votos_comuna) * 100
+    porcentaje_JXC_comuna = (votos_JXC_comuna / total_votos_comuna) * 100
+    porcentaje_FIT_comuna = (votos_FIT_comuna / total_votos_comuna) * 100
+    porcentaje_HNP_comuna = (votos_HNP_comuna / total_votos_comuna) * 100
+
+    porcentaje_comunas[comuna] = {
+        'UNION POR LA PATRIA': porcentaje_UXP_comuna,
+        'LA LIBERTAD AVANZA': porcentaje_LLA_comuna,
+        'JUNTOS POR EL CAMBIO': porcentaje_JXC_comuna,
+        'FRENTE DE IZQUIERDA Y DE TRABAJADORES - UNIDAD': porcentaje_FIT_comuna,
+        'HACEMOS POR NUESTRO PAIS': porcentaje_HNP_comuna
+    }
+
+    print(f"{comuna}: "
+          f"UNION POR LA PATRIA = {porcentaje_UXP_comuna:.2f}%, "
+          f"LA LIBERTAD AVANZA = {porcentaje_LLA_comuna:.2f}%, "
+          f"JUNTOS POR EL CAMBIO = {porcentaje_JXC_comuna:.2f}%, "
+          f"FRENTE DE IZQUIERDA Y DE TRABAJADORES - UNIDAD = {porcentaje_FIT_comuna:.2f}%, "
+          f"HACEMOS POR NUESTRO PAIS = {porcentaje_HNP_comuna:.2f}%")
+
+
+
+
+########## FIN DE PORCENTAJES POR COMUNAS ########################
+
+
+
+
+
+###############Gráfico de barras votos por comuna y partido #################
+
+# Convertir el diccionario de resultados a un DataFrame
+df_resultados = pd.DataFrame(votos_comunas).T
+colores = {'UNION POR LA PATRIA': 'skyblue', 'JUNTOS POR EL CAMBIO': 'gold', 'LA LIBERTAD AVANZA': 'purple'}
+
+# Graficar los resultados por comuna con colores personalizados
+ax = df_resultados.plot(kind='bar', stacked=True, figsize=(12, 8), color=[colores[col] for col in df_resultados.columns])
+plt.title('Cantidad de votos por agrupación en cada comuna')
+plt.xlabel('Comuna')
+plt.ylabel('Cantidad de votos')
+plt.legend(title='Agrupación')
+
+# Rotar las etiquetas del eje x
+plt.xticks(rotation=75)
+
+# Reducir el tamaño de la letra del eje x en un 30%
+plt.tick_params(axis='x', labelsize=plt.rcParams['font.size'] * 0.7)
+
+# Configurar el eje y con marcas cada 10,000 votos y límite hasta 150,000
+plt.yticks(range(0, 150001, 10000))
+
+# Agregar líneas punteadas en el eje x
+for y in range(0, 150001, 10000):
+    plt.axhline(y, linestyle='--', color='grey', alpha=0.5)
+
+plt.show()
+
+###############   FIN   Gráfico de barras votos por comuna y partido #################
+
+
+
+
+
+
+############### Gráfico de barras votos por comuna y partido #################
+
+# Convertir el diccionario de resultados a un DataFrame
+df_resultados = pd.DataFrame(votos_comunas).T
+
+# Definir los colores para cada agrupación
+colores = {'JUNTOS POR EL CAMBIO': 'gold', 'UNION POR LA PATRIA': 'skyblue',  'LA LIBERTAD AVANZA': 'purple'}
+
+# Graficar los resultados por comuna con colores personalizados
+fig, ax = plt.subplots(figsize=(12, 8))
+
+# Obtener los nombres de las comunas y el número de barras
+comunas = df_resultados.index.tolist()
+num_comunas = len(comunas)
+bar_width = 0.25  # Ancho de cada barra
+
+# Coordenadas para ubicar las barras
+x = np.arange(num_comunas)
+
+# Dibujar las barras para cada agrupación
+for i, (agrupacion, color) in enumerate(colores.items()):
+    ax.bar(x + i * bar_width, df_resultados[agrupacion], width=bar_width, color=color, label=agrupacion)
+
+# Configurar etiquetas, leyendas y otros detalles del gráfico
+ax.set_xlabel('Comuna')
+ax.set_ylabel('Cantidad de votos')
+ax.set_title('Cantidad de votos por agrupación en cada comuna')
+ax.set_xticks(x + bar_width)
+ax.set_xticklabels(comunas)
+ax.legend(title='Agrupación')
+plt.xticks(rotation=75)
+
+# Configurar el eje y con marcas cada 5000 votos y límites hasta 150000
+plt.yticks(np.arange(0, 95000, 5000))
+for y in range(0, 95000, 5000):
+    plt.axhline(y, linestyle='--', color='grey', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+############### FIN   Gráfico de barras votos por comuna y partido #################
+
+
+
+
+
+
+
+
+#########################      inicio DATOS CABA para mapear   ########################################
+
+
+
+
+
+######################## MAPA POR COMUNAS POR NÚMERO ###################
+
+CircuitosElectorales_csv = gpd.read_file("C:/Users/lolag/Met.O.P/circuito_01/circuitos-electorales.csv")
+
+CircuitosElectorales_csv.columns
+CircuitosElectorales_csv.head(10)
+
+def unir_geometrias(grupo):
+    geometrias = [geom for geom in grupo.geometry]
+    return cascaded_union(geometrias)
+CircuitosElectorales_csv.columns
+# Agrupar por 'departamen' y unir las geometrías de cada grupo (comuna)
+comunas_agrupadas = CircuitosElectorales_csv.groupby('COMUNA').apply(unir_geometrias)
+# Crear un nuevo GeoDataFrame con las comunas agrupadas
+nuevo_geodf = gpd.GeoDataFrame(geometry=comunas_agrupadas, crs=CircuitosElectorales_csv.crs)
+nuevo_geodf.head()
+
+# ####### MAPA POR COMUNAS #######
+# Plot de las comunas
+ax = nuevo_geodf.plot(figsize=(10, 10), edgecolor='black', linewidth=2)
+
+# Agregar etiquetas con el nombre de las comunas en el centro
+for idx, row in nuevo_geodf.iterrows():
+    centroid = row['geometry'].centroid
+    ax.annotate(idx, (centroid.x, centroid.y), color='black', fontsize=12, ha='center', va='center')
+
+plt.title('Comunas con números')
+plt.axis('off')
+plt.show()
+
+
+
+################# MAPA % DE VOTOS POR COMUNAS #####################
+##Convierto el diccionario df_porcentajes_comunas a df##
+df_porcentajes_comunas = pd.DataFrame.from_dict(porcentaje_comunas, orient='index')
+df_porcentajes_comunas.columns
+df_porcentajes_comunas.head(15)
+df_porcentajes_comunas.index.name = 'COMUNA'
+df_porcentajes_comunas.reset_index(inplace=True)
+df_porcentajes_comunas.columns.name = None  # Elimina el nombre de las columnas
+df_porcentajes_comunas.rename(columns={'COMUNA': 'COMUNA_PORCENTAJES'}, inplace=True)
+
+########### Una posibilidad era  Transponer el DataFrame para tener las comunas como índices, pero no funcionó###########
+###df_porcentajes_comunas_transp = df_porcentajes_comunas.transpose()
+
+# Verificar las columnas y los primeros registros
+##print(df_porcentajes_comunas_transp.columns)
+#print(df_porcentajes_comunas_transp.head())
+############################################################################################################
+
+
+# Diccionario para mapear los números a sus nombres de comuna
+mapeo_comunas = {
+    '1': 'Comuna 01',
+    '2': 'Comuna 02',
+    '3': 'Comuna 03',
+    '4': 'Comuna 04',
+    '5': 'Comuna 05',
+    '6': 'Comuna 06',
+    '7': 'Comuna 07',
+    '8': 'Comuna 08',
+    '9': 'Comuna 09',
+    '10': 'Comuna 10',
+    '11': 'Comuna 11',
+    '12': 'Comuna 12',
+    '13': 'Comuna 13',
+    '14': 'Comuna 14',
+    '15': 'Comuna 15'
+}
+
+# Aplicar el mapeo a la columna 'COMUNA' en CircuitosElectorales_csv
+CircuitosElectorales_csv['COMUNA'] = CircuitosElectorales_csv['COMUNA'].astype(str)
+df_porcentajes_comunas.index = df_porcentajes_comunas.index.astype(str)
+
+############# Matcheo los df geo y % x partido ################
+
+
+
+df_final = pd.merge(CircuitosElectorales_csv, df_porcentajes_comunas, left_on='COMUNA', right_on='COMUNA_PORCENTAJES', how='inner')
+
+# Ajustar los valores mínimos y máximos para resaltar más la diferencia de colores
+vmin_custom = df_final['LA LIBERTAD AVANZA'].min() 
+vmax_custom = df_final['LA LIBERTAD AVANZA'].max() 
+
+# Normalizar los valores de votos para asignar colores
+norm = Normalize(vmin=vmin_custom, vmax=vmax_custom)
+from matplotlib.colors import BoundaryNorm
+# Elegir un mapa de colores más amplio y con mayor variedad de tonos
+cmap = plt.cm.get_cmap('Purples')
+n_colors = 0
+colors = cmap(norm(df_final['LA LIBERTAD AVANZA']))
+# Graficar el mapa base con los colores de fondo
+fig, ax = plt.subplots(figsize=(10, 10))
+
+# Colorear cada comuna según la cantidad de votos de 'LA LIBERTAD AVANZA'
+for idx, row in df_final.iterrows():
+    comuna = row['COMUNA']
+    color = cmap(norm(row['LA LIBERTAD AVANZA']))
+    df_final[df_final['COMUNA'] == comuna].plot(ax=ax, color=color)
+
+# Dibujar las líneas de los límites de las comunas con transparencia
+nuevo_geodf.boundary.plot(ax=ax, color='black', linewidth=2)
+
+# Agregar etiquetas con el número de las comunas en el centro
+for idx, geom in nuevo_geodf['geometry'].items():
+    centroid = geom.centroid
+    comuna_num = str(nuevo_geodf.loc[idx, 'index'])
+    ax.annotate(comuna_num, (centroid.x, centroid.y), color='black', fontsize=12, ha='center', va='center')
+
+plt.title('Porcentaje de votos LA LIBERTAD AVANZA por comuna')
+plt.axis('off')
+
+# Barra de colores para la leyenda
+sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax, label='Porcentajes LLA')
+
+# Obtener los límites actuales del gráfico
+xlim = ax.get_xlim()
+ylim = ax.get_ylim()
+
+# Texto para el valor máximo
+plt.text(xlim[0] + (xlim[1] - xlim[0]) * 1.1, ylim[1] + 0.03 * (ylim[1] - ylim[0]), f'{vmax_custom:.2f}', ha='center')
+
+# Texto para el valor mínimo
+plt.text(xlim[0] + (xlim[1] - xlim[0]) * 1.1, ylim[0] - 0.06 * (ylim[1] - ylim[0]), f'{vmin_custom:.2f}', ha='center')
+
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Ajustar los valores mínimos y máximos para resaltar más la diferencia de colores
+vmin_custom = df_final['UNION POR LA PATRIA'].min() 
+vmax_custom = df_final['UNION POR LA PATRIA'].max() * 0.9  # Reducción del máximo para aumentar la diferencia de colores
+
+# Normalizar los valores de votos para asignar colores
+norm = Normalize(vmin=vmin_custom, vmax=vmax_custom)
+
+# Colormap: cuanto más oscuro, mayor cantidad de votos
+cmap = plt.cm.Blues
+
+# Graficar el mapa base
+fig, ax = plt.subplots(figsize=(10, 10))
+df_final.plot(ax=ax, edgecolor='black', linewidth=2, alpha=0.7)
+
+# Colorear cada comuna según la cantidad de votos de 'LA LIBERTAD AVANZA'
+for idx, row in df_final.iterrows():
+    comuna = row['COMUNA']
+    color = cmap(norm(row['UNION POR LA PATRIA']))
+    df_final[df_final['COMUNA'] == comuna].plot(ax=ax, color=color)
+
+# Agregar etiquetas con el nombre de las comunas en el centro
+for idx, row in df_final.iterrows():
+    centroid = row['geometry'].centroid
+
+plt.title('Votos para LA UNION POR LA PATRIA por comuna')
+plt.axis('off')
+
+# Barra de colores para la leyenda
+sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax, label='Votos para UNION POR LA PATRIA')
+
+plt.show()
+
+
+
+# Ajustar los valores mínimos y máximos para resaltar más la diferencia de colores
+vmin_custom = df_final['JUNTOS POR EL CAMBIO'].min() 
+vmax_custom = df_final['JUNTOS POR EL CAMBIO'].max() * 0.9  # Reducción del máximo para aumentar la diferencia de colores
+
+# Normalizar los valores de votos para asignar colores
+norm = Normalize(vmin=vmin_custom, vmax=vmax_custom)
+
+# Colormap: cuanto más oscuro, mayor cantidad de votos
+cmap = plt.cm.YlOrBr
+
+# Graficar el mapa base
+fig, ax = plt.subplots(figsize=(10, 10))
+df_final.plot(ax=ax, edgecolor='black', linewidth=2, alpha=0.7)
+
+# Colorear cada comuna según la cantidad de votos de 'LA LIBERTAD AVANZA'
+for idx, row in df_final.iterrows():
+    comuna = row['COMUNA']
+    color = cmap(norm(row['JUNTOS POR EL CAMBIO']))
+    df_final[df_final['COMUNA'] == comuna].plot(ax=ax, color=color)
+
+# Agregar etiquetas con el nombre de las comunas en el centro
+for idx, row in df_final.iterrows():
+    centroid = row['geometry'].centroid
+
+plt.title('Votos para JUNTOS POR EL CAMBIO por comuna')
+plt.axis('off')
+
+# Barra de colores para la leyenda
+sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax, label='Votos para JUNTOS POR EL CAMBIO')
+
+plt.show()
+
+
+
+
+
+
+
+
+
+################# MAPA VOTANTES POR CIRCUITO ELECTORAL ####################
+
+CircuitosElectorales_csv.head()
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+CircuitosElectorales_csv.plot(column='BARRIO', cmap='plasma', linewidth=0.8, ax=ax, edgecolor='1')
+ax.set_title('Total de votantes por barrios')
+
+plt.show()
+
